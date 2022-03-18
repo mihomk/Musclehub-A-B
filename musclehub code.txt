@@ -1,0 +1,119 @@
+import pandas as pd
+
+visits = pd.read_csv('visits.csv')
+fitness_tests = pd.read_csv('fitness_tests.csv')
+applications = pd.read_csv('applications.csv')
+purchases = pd.read_csv('purchases.csv')
+
+df = visits[visits.visit_date >= '7-1-17'].merge(fitness_tests, how='left').\
+merge(applications, how='left').merge(purchases, how='left')
+    
+df.head()
+
+## Investigate the A and B groups
+
+import pandas as pd
+from matplotlib import pyplot as plt
+
+df['ab_test_group'] = df.fitness_test_date.apply(lambda x: 'A' if pd.notnull(x) else 'B')
+df.head()
+
+ab_counts = df.groupby('ab_test_group').first_name.count().reset_index()
+ab_counts
+
+plt.pie(ab_counts.first_name.values, labels=['A', 'B'], autopct='%0.2f%%')
+plt.axis('equal')
+plt.show()
+plt.savefig('ab_test_pie_chart.png')
+
+## Who picks up an application?
+
+df['is_application'] = df.application_date.apply(lambda x: 'Application' if pd.notnull(x) else 'No Application')
+df
+
+app_counts = df.groupby(['ab_test_group', 'is_application']).first_name.count().reset_index()
+app_counts
+
+app_pivot = app_counts.pivot(
+columns='is_application',
+index='ab_test_group',
+values='first_name').reset_index()
+app_pivot
+
+app_pivot['Total'] = app_pivot.Application + app_pivot['No Application']
+app_pivot
+
+app_pivot['Percent with Application'] = app_pivot.Application / app_pivot.Total
+app_pivot
+
+from scipy.stats import chi2_contingency
+
+contingency = [[250, 2254],
+               [325, 2175]]
+
+chi2_contingency(contingency)
+
+## Who purchases a membership?
+
+df['is_member'] = df.purchase_date.apply(lambda x: 'Member' if pd.notnull(x) else 'Not Member')
+df.head()
+
+just_apps = df[(df.is_application == 'Application')]
+
+member_counts = just_apps.groupby(['is_member', 'ab_test_group']).first_name.count().reset_index()
+member_pivot = member_counts.pivot(
+columns='is_member',
+index='ab_test_group',
+values='first_name').reset_index()
+member_pivot['Total'] = member_pivot.Member + member_pivot['Not Member']
+member_pivot['Percent Purchase'] = member_pivot.Member / member_pivot.Total
+member_pivot
+
+contingency2 = [[200, 50],
+                [250, 75]]
+chi2_contingency(contingency2)
+
+member_counts2 = df.groupby(['is_member', 'ab_test_group']).first_name.count().reset_index()
+final_member_pivot = member_counts2.pivot(
+columns='is_member',
+index='ab_test_group',
+values='first_name').reset_index()
+final_member_pivot['Total'] = final_member_pivot.Member + final_member_pivot['Not Member']
+final_member_pivot['Percent Purchase'] = final_member_pivot.Member / final_member_pivot.Total
+final_member_pivot
+
+contingency3 = [[200, 250],
+                [2304, 2250]]
+chi2_contingency(contingency3)
+
+## Summarize the acquisition funel with a chart
+
+ax = plt.subplot()
+plt.bar(range(len(app_pivot.ab_test_group)), app_pivot['Percent with Application'].values)
+ax.set_xticks(range(len(app_pivot.ab_test_group)))
+ax.set_xticklabels(['Fitness Test', 'No Fitness Test'])
+ax.set_yticks([0, 0.05, 0.10, 0.15, 0.20])
+ax.set_yticklabels(['0%', '5%', '10%', '15%', '20%'])
+plt.title('Percent of visitors who apply')
+plt.show()
+plt.savefig('percent_visitors_apply.png')
+
+ax = plt.subplot()
+plt.bar(range(len(member_pivot.ab_test_group)), member_pivot['Percent Purchase'].values)
+ax.set_xticks(range(len(member_pivot.ab_test_group)))
+ax.set_xticklabels(['Fitness Test', 'No Fitness Test'])
+ax.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])
+ax.set_yticklabels(['0%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'])
+plt.title('Percent of applicants who purchase a membership')
+plt.show()
+plt.savefig('percent_apply_purchase.png')
+
+ax = plt.subplot()
+plt.bar(range(len(final_member_pivot.ab_test_group)), final_member_pivot['Percent Purchase'].values)
+ax.set_xticks(range(len(final_member_pivot.ab_test_group)))
+ax.set_xticklabels(['Fitness Test', 'No Fitness Test'])
+ax.set_yticks([0, 0.05, 0.10, 0.15, 0.20])
+ax.set_yticklabels(['0%', '5%', '10%', '15%', '20%'])
+plt.title('Percent of visitors who purchase a membership')
+plt.show()
+plt.savefig('percent_visitors_purchase.png')
